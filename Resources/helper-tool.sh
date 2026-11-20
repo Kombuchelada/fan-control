@@ -19,6 +19,9 @@ install)
     stop
     mkdir -p /Library/PrivilegedHelperTools
     install -m 755 -o root -g wheel "$APP/Contents/Library/LaunchServices/$LABEL" "$HELPER"
+    # A downloaded app carries the quarantine flag; the user has already approved the app
+    # itself, so don't let the copied helper be held back by it.
+    xattr -d com.apple.quarantine "$HELPER" 2>/dev/null || true
     install -m 644 -o root -g wheel "$APP/Contents/Resources/$LABEL.plist" "$PLIST"
     launchctl bootstrap system "$PLIST"
     ;;

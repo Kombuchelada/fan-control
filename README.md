@@ -37,7 +37,27 @@ Don't run Fan Control at the same time as another app that sets fan speeds, such
 
 ## Installing
 
-Fan Control is built from source. You need the Xcode Command Line Tools; the full Xcode app isn't required.
+### Download
+
+1. Download **Fan-Control.zip** from the [latest release](https://github.com/Kombuchelada/fan-control/releases/latest).
+2. Open the zip, then drag **Fan Control** into your **Applications** folder.
+3. Open Fan Control from Applications.
+
+Fan Control isn't notarized by Apple, so macOS blocks it the first time with a message that it can't verify the app. To allow it:
+
+- **macOS 15 or later:** click **Done** in the warning. Then open **System Settings → Privacy & Security**, scroll down to the message about Fan Control, click **Open Anyway** and confirm.
+- **macOS 14:** Control-click the app in Applications, choose **Open**, then click **Open** again.
+
+You only need to do this once. If you'd rather use Terminal, this removes the download flag and opens the app:
+
+```sh
+xattr -dr com.apple.quarantine "/Applications/Fan Control.app"
+open "/Applications/Fan Control.app"
+```
+
+### Build from source
+
+You need the Xcode Command Line Tools; the full Xcode app isn't required. Apps you build yourself aren't blocked by Gatekeeper.
 
 1. Install the Command Line Tools, if you don't have them:
 
@@ -116,6 +136,7 @@ The curves are defined in [`Sources/FanKit/FanProfile.swift`](Sources/FanKit/Fan
 
 ```sh
 scripts/build.sh                # build build/Fan Control.app (ad-hoc signed)
+scripts/package.sh              # build and zip it for a GitHub release
 scripts/test.sh                 # unit tests for the curves and the controller
 swift scripts/make-icon.swift   # regenerate Resources/AppIcon.icns
 ```
