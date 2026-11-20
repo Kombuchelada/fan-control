@@ -131,11 +131,11 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     // MARK: NSMenuDelegate
 
     func menuWillOpen(_ menu: NSMenu) {
-        model.setRefreshRate(fast: true)
+        model.setLive(true)
     }
 
     func menuDidClose(_ menu: NSMenu) {
-        model.setRefreshRate(fast: false)
+        model.setLive(false)
     }
 
     // MARK: Actions

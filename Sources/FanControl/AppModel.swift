@@ -52,8 +52,17 @@ final class AppModel {
 
     // MARK: Sensors
 
-    /// How often readings refresh: quickly while someone is looking, lazily otherwise.
-    func setRefreshRate(fast: Bool) {
+    /// Number of open views showing live readings (the menu, the Settings window).
+    @ObservationIgnored private var liveViewers = 0
+
+    /// Call with true when a view showing readings opens and false when it closes.
+    /// Readings refresh every second while anything is showing them, and lazily otherwise.
+    func setLive(_ live: Bool) {
+        liveViewers = max(0, liveViewers + (live ? 1 : -1))
+        startRefreshing(fast: liveViewers > 0)
+    }
+
+    func startRefreshing(fast: Bool) {
         refreshTimer?.invalidate()
         let timer = Timer(timeInterval: fast ? 1 : 3, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.refresh() }

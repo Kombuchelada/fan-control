@@ -13,7 +13,16 @@ enum Format {
     }
 
     static func rpm(_ value: Double) -> String {
-        // Round to tens: the last digit jitters constantly and isn't meaningful.
-        ((value / 10).rounded() * 10).formatted(.number.precision(.fractionLength(0))) + " rpm"
+        number(value) + " rpm"
+    }
+
+    /// e.g. "1,840–5,300 rpm".
+    static func rpmRange(_ lower: Double, _ upper: Double) -> String {
+        number(lower) + "–" + number(upper) + " rpm"
+    }
+
+    /// Rounds to tens: the last digit of a fan speed jitters constantly and isn't meaningful.
+    private static func number(_ rpm: Double) -> String {
+        ((rpm / 10).rounded() * 10).formatted(.number.precision(.fractionLength(0)))
     }
 }

@@ -2,9 +2,9 @@ import Charts
 import FanKit
 import SwiftUI
 
-struct SettingsView: View {
-    @Bindable var model: AppModel
-    @State private var confirmingUninstall = false
+/// "Fan Curve" settings tab: the curve chart and the curve choice.
+struct FanCurveSettingsView: View {
+    let model: AppModel
 
     var body: some View {
         Form {
@@ -34,8 +34,6 @@ struct SettingsView: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-            } header: {
-                Text("Fan Curve")
             } footer: {
                 if model.profile != .automatic {
                     Text("Fans return to automatic control when Fan Control quits. Above \(Int(CurveController.safetyStart)) °C every curve speeds the fans up, so no setting can let your Mac overheat.")
@@ -43,29 +41,61 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                 }
             }
+        }
+        .settingsPaneStyle()
+    }
+}
 
-            Section("Current Readings") {
+/// "Sensors" settings tab: live temperatures and fan speeds.
+struct SensorsSettingsView: View {
+    let model: AppModel
+
+    var body: some View {
+        Form {
+            Section("Temperatures") {
                 LabeledContent("CPU", value: Format.temperature(model.snapshot.cpu))
                 if model.snapshot.gpu != nil {
                     LabeledContent("Graphics", value: Format.temperature(model.snapshot.gpu))
                 }
+            }
+
+            Section("Fans") {
+                if model.snapshot.fans.isEmpty {
+                    Text("No fans found").foregroundStyle(.secondary)
+                }
                 ForEach(model.snapshot.fans) { fan in
-                    LabeledContent(fan.name) {
+                    LabeledContent {
                         HStack(spacing: 8) {
                             Gauge(value: fan.fraction) { EmptyView() }
                                 .gaugeStyle(.accessoryLinearCapacity)
                                 .frame(width: 80)
                             Text(Format.rpm(fan.rpm))
-                                .monospacedDigit()
                                 .frame(minWidth: 72, alignment: .trailing)
                         }
+                    } label: {
+                        Text(fan.name)
+                        Text(Format.rpmRange(fan.minimumRPM, fan.maximumRPM))
                     }
                 }
             }
+        }
+        .settingsPaneStyle()
+    }
+}
 
-            Section("General") {
+/// "General" settings tab.
+struct GeneralSettingsView: View {
+    @Bindable var model: AppModel
+    @State private var confirmingUninstall = false
+
+    var body: some View {
+        Form {
+            Section {
                 Toggle("Show temperature in menu bar", isOn: $model.showsTemperatureInMenuBar)
                 Toggle("Open at login", isOn: $model.opensAtLogin)
+            }
+
+            Section {
                 LabeledContent {
                     if model.helperInstalled {
                         Button("Uninstall…") { confirmingUninstall = true }
@@ -78,20 +108,23 @@ struct SettingsView: View {
                 }
             }
         }
-        .formStyle(.grouped)
-        .frame(width: 480)
-        .fixedSize(horizontal: false, vertical: true)
-        .monospacedDigit()
+        .settingsPaneStyle()
         .confirmationDialog("Uninstall the fan control helper?", isPresented: $confirmingUninstall) {
             Button("Uninstall", role: .destructive) { model.uninstallHelper() }
         } message: {
             Text("Your fans will return to automatic control. Fan Control will ask to install the helper again the next time you choose a fan curve.")
         }
-        .onAppear {
-            model.refreshLoginItemStatus()
-            model.setRefreshRate(fast: true)
-        }
-        .onDisappear { model.setRefreshRate(fast: false) }
+        .onAppear { model.refreshLoginItemStatus() }
+    }
+}
+
+private extension View {
+    /// Shared look for settings tabs. The height is left flexible so a tab scrolls
+    /// when the screen is too short to show all of it.
+    func settingsPaneStyle() -> some View {
+        formStyle(.grouped)
+            .frame(width: 480)
+            .monospacedDigit()
     }
 }
 

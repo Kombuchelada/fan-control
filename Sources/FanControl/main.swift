@@ -11,11 +11,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusMenu.openSettings = { [weak self] in self?.settings.show() }
         model.onDisplayChange = { [weak statusMenu] in statusMenu?.update() }
         self.statusMenu = statusMenu
-        model.setRefreshRate(fast: false)
-        Task { await model.restoreSavedProfile() }
+        model.startRefreshing(fast: false)
         #if DEBUG
-        statusMenu.runDebugSnapshotIfRequested()
+        // Snapshot runs must not take the fans away from a running copy of the app.
+        if ProcessInfo.processInfo.environment["FANCONTROL_SNAPSHOT"] != nil {
+            statusMenu.runDebugSnapshotIfRequested()
+            return
+        }
         #endif
+        Task { await model.restoreSavedProfile() }
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {

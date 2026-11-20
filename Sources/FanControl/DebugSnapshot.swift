@@ -12,11 +12,7 @@ enum DebugSnapshot {
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
             showSettings()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                for window in NSApp.windows where window.isVisible && window.title == "Fan Control" {
-                    save(window, to: "\(dir)/settings.png")
-                }
-                if let window = button?.window { save(window, to: "\(dir)/statusitem.png") }
+            captureSettingsTabs(index: 0, dir: dir) {
                 // Capture the menu while it is tracking.
                 let timer = Timer(timeInterval: 1.0, repeats: false) { _ in
                     for window in NSApp.windows where window.isVisible && window.className.contains("Menu") {
@@ -28,6 +24,20 @@ enum DebugSnapshot {
                 menu.popUp(positioning: nil, at: NSPoint(x: 0, y: 0), in: button)
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { NSApp.terminate(nil) }
             }
+        }
+    }
+
+    /// Selects each Settings tab in turn and captures it as settings-<n>.png.
+    private static func captureSettingsTabs(index: Int, dir: String, then done: @escaping () -> Void) {
+        guard let window = NSApp.windows.first(where: { $0.isVisible && $0.contentViewController is NSTabViewController }),
+              let tabs = window.contentViewController as? NSTabViewController,
+              index < tabs.tabViewItems.count else { return done() }
+        tabs.selectedTabViewItemIndex = index
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            let visible = (window.screen ?? NSScreen.main)?.visibleFrame ?? .zero
+            print("tab \(index) \(window.title): frame \(window.frame) fits \(visible.contains(window.frame))")
+            save(window, to: "\(dir)/settings-\(index).png")
+            captureSettingsTabs(index: index + 1, dir: dir, then: done)
         }
     }
 

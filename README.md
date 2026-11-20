@@ -16,7 +16,7 @@ Pick a fan curve from the menu bar:
 
 Curves are defined as a fraction of each fan's own min–max range, against the hotter of the CPU and GPU die temperatures. Each curve also sets how quickly the fans respond: temperature smoothing, hysteresis (how far temperatures must fall before fans slow), and rate limits for speeding up and slowing down. See `Sources/FanKit/FanProfile.swift`.
 
-The menu shows live CPU and graphics temperatures and each fan's speed. **Settings…** (⌘,) adds a chart of the curves with the current temperature marked, plus options to show the temperature in the menu bar and open at login.
+The menu shows live CPU and graphics temperatures and each fan's speed. **Settings…** (⌘,) is a standard tabbed settings window: **Fan Curve** (a chart of the curves with the current temperature marked), **Sensors** (live readings and each fan's range) and **General** (show the temperature in the menu bar, open at login, remove the helper). Each tab is capped to the screen's height and scrolls on smaller displays.
 
 ## Safety
 
