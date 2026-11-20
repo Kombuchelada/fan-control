@@ -84,12 +84,14 @@ While a curve is active, the menu bar icon is filled in. Choose **Automatic** to
   - **Open at login** starts Fan Control when you log in. Your last curve is restored automatically.
   - **Uninstall…** removes the helper.
 
-**Quitting** Fan Control returns the fans to automatic control.
+**Quitting** Fan Control returns the fans to automatic control, unless another user's Fan Control is still running a curve.
+
+**Several users on one Mac.** Each user can run Fan Control with their own curve. The fans follow the choice of the user at the screen; with nobody at the screen, they follow the most recent choice. When one user quits Fan Control or logs out, the fans switch to whatever the remaining users chose, and go back to automatic control once nobody wants a curve.
 
 ## Safety
 
 - Above 90 °C every curve ramps toward full speed, reaching it at 97 °C, whatever the chosen curve says.
-- Fans go back to automatic control when the app quits or crashes, when the helper is stopped, and at every boot.
+- Fans go back to automatic control when no running copy of the app wants a curve (for example after it quits or crashes), when the helper is stopped, and at every boot.
 - If no temperature can be read, the helper runs the fans at full speed.
 - Target speeds are always clamped to each fan's own minimum and maximum.
 
@@ -127,7 +129,8 @@ The curves are defined in [`Sources/FanKit/FanProfile.swift`](Sources/FanKit/Fan
 ```sh
 scripts/build.sh                # build build/Fan Control.app (ad-hoc signed)
 scripts/package.sh              # build and zip it as build/Fan-Control.zip
-scripts/test.sh                 # unit tests for the curves and the controller
+scripts/test.sh                 # unit tests for the curves, the controller and multi-user arbitration
+SIGN_IDENTITY=… scripts/check-multi-client.sh   # two-app check against the installed helper
 swift scripts/make-icon.swift   # regenerate Resources/AppIcon.icns
 ```
 

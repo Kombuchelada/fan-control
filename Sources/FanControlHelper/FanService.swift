@@ -5,15 +5,20 @@ import os
 let log = Logger(subsystem: HelperConstants.helperLabel, category: "service")
 
 /// Runs the fan control loop. All state is confined to `queue`.
+///
+/// Every connected app (one per logged-in user) has a request in `arbiter`; the service
+/// follows whichever curve the arbiter picks and re-picks whenever a request changes, an
+/// app disconnects, or a different user comes to the screen.
 final class FanService {
     let queue = DispatchQueue(label: "\(HelperConstants.helperLabel).control")
     private let smc: SMC
     private let writer: FanWriter
+    private var arbiter = ControlArbiter()
     private var controller: CurveController?
-    private var owner: ObjectIdentifier?
     private var timer: DispatchSourceTimer?
     private var lastTick: Date?
     private var lastWritten: [Int: Double] = [:]
+    private var nextSession = 0
 
     static let tickInterval: TimeInterval = 1
 
@@ -22,20 +27,48 @@ final class FanService {
         writer = FanWriter(smc: smc)
     }
 
-    /// Starts following `curve` on behalf of `client`. Any other client loses control.
-    func follow(_ curve: FanCurve, for client: ObjectIdentifier) throws {
+    func newSession() -> Int {
         dispatchPrecondition(condition: .onQueue(queue))
-        guard curve.isValid else { throw HelperError("The fan curve is invalid.") }
-        guard ThermalSensors.fanCount(smc) > 0 else { throw HelperError("This Mac has no controllable fans.") }
+        nextSession += 1
+        return nextSession
+    }
 
-        // A fresh controller starts at the curve's speed for the current temperature;
-        // the fans' own spin-up and spin-down soften the change.
-        controller = CurveController(curve: curve)
-        owner = client
-        lastTick = nil
-        log.info("Following new curve with \(curve.points.count) points")
-        tick()
-        startTimer()
+    /// Records what `session`'s app wants: a curve, or nil for automatic control.
+    func request(_ curve: FanCurve?, session: Int, user: uid_t) throws {
+        dispatchPrecondition(condition: .onQueue(queue))
+        if let curve {
+            guard curve.isValid else { throw HelperError("The fan curve is invalid.") }
+            guard ThermalSensors.fanCount(smc) > 0 else { throw HelperError("This Mac has no controllable fans.") }
+        }
+        log.notice("Session \(session) (uid \(user)) asked for \(curve == nil ? "automatic control" : "a curve", privacy: .public)")
+        arbiter.request(curve, session: session, user: user)
+        update()
+    }
+
+    /// An app disconnected (it quit, crashed, or its user logged out).
+    func endSession(_ session: Int) {
+        dispatchPrecondition(condition: .onQueue(queue))
+        log.notice("Session \(session) ended")
+        arbiter.endSession(session)
+        update()
+    }
+
+    /// Follows whichever curve the arbiter picks now. Call whenever its inputs change.
+    func update() {
+        dispatchPrecondition(condition: .onQueue(queue))
+        let wanted = arbiter.curve(consoleUser: ConsoleUser.current())
+        guard wanted != controller?.curve else { return }
+        if let wanted {
+            // A fresh controller starts at the curve's speed for the current temperature;
+            // the fans' own spin-up and spin-down soften the change.
+            controller = CurveController(curve: wanted)
+            lastTick = nil
+            log.notice("Following a curve with \(wanted.points.count) points")
+            tick()
+            startTimer()
+        } else {
+            restoreAutomatic()
+        }
     }
 
     /// Hands the fans back to macOS.
@@ -44,17 +77,11 @@ final class FanService {
         timer?.cancel()
         timer = nil
         controller = nil
-        owner = nil
         lastWritten = [:]
         for fan in 0..<ThermalSensors.fanCount(smc) {
             do { try writer.restoreAutomatic(fan: fan) } catch { log.error("Restore fan \(fan) failed: \(String(describing: error))") }
         }
-        log.info("Fans returned to automatic control")
-    }
-
-    func clientDisconnected(_ client: ObjectIdentifier) {
-        dispatchPrecondition(condition: .onQueue(queue))
-        if owner == client { restoreAutomatic() }
+        log.notice("Fans returned to automatic control")
     }
 
     private func startTimer() {

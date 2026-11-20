@@ -27,10 +27,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         settings.show()
         return false
     }
-
-    func applicationWillTerminate(_ notification: Notification) {
-        model.prepareForTermination()
-    }
 }
 
 MainActor.assumeIsolated {

@@ -86,16 +86,28 @@ final class AppModel {
     // MARK: Profiles
 
     /// Re-applies the saved profile at launch, without prompting for a password.
+    ///
+    /// Automatic is sent to the helper too: with several users running Fan Control, it
+    /// keeps a background user's curve from taking over while this user is at the screen.
     func restoreSavedProfile() async {
-        guard let saved = UserDefaults.standard.string(forKey: Keys.profile).flatMap(FanProfile.init),
-              let curve = saved.curve,
-              await helper.installedVersion() == HelperConstants.helperVersion else { return }
+        let saved = UserDefaults.standard.string(forKey: Keys.profile).flatMap(FanProfile.init) ?? .automatic
+        guard await helper.installedVersion() == HelperConstants.helperVersion else { return }
         do {
-            try await helper.follow(curve)
+            try await send(saved)
             profile = saved
             onDisplayChange?()
         } catch {
             log.error("Couldn’t restore \(saved.name): \(error.localizedDescription)")
+        }
+    }
+
+    /// Tells the helper what this app wants. Other users' apps may also have wishes;
+    /// the helper decides between them.
+    private func send(_ profile: FanProfile) async throws {
+        if let curve = profile.curve {
+            try await helper.follow(curve)
+        } else {
+            await helper.restoreAutomatic()
         }
     }
 
@@ -108,12 +120,8 @@ final class AppModel {
                 onDisplayChange?()
             }
             do {
-                if let curve = newProfile.curve {
-                    try await ensureHelper()
-                    try await helper.follow(curve)
-                } else {
-                    await helper.restoreAutomatic()
-                }
+                if newProfile.curve != nil { try await ensureHelper() }
+                try await send(newProfile)
                 profile = newProfile
                 UserDefaults.standard.set(newProfile.rawValue, forKey: Keys.profile)
             } catch HelperClientError.cancelled {
@@ -137,11 +145,12 @@ final class AppModel {
         throw HelperClientError.unreachable("It was installed but isn’t responding.")
     }
 
+    /// A restarted helper has forgotten every app's wish; tell it this app's again.
     private func helperDidRestart() {
-        guard let curve = profile.curve else { return }
+        let current = profile
         Task {
             try? await Task.sleep(for: .milliseconds(500))
-            do { try await helper.follow(curve) } catch {
+            do { try await send(current) } catch {
                 log.error("Couldn’t resume after helper restart: \(error.localizedDescription)")
                 profile = .automatic
                 onDisplayChange?()
@@ -160,11 +169,6 @@ final class AppModel {
         }
         helperInstalled = helper.isInstalled
         onDisplayChange?()
-    }
-
-    /// Hands the fans back to macOS before the app exits.
-    func prepareForTermination() {
-        if profile.curve != nil { helper.restoreAutomaticSynchronously() }
     }
 
     // MARK: Login item

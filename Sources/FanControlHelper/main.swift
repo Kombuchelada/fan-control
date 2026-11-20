@@ -1,12 +1,17 @@
 import FanKit
 import Foundation
 
-/// Object exported to one client connection.
+/// Object exported to one client connection: one Fan Control app, run by `user`.
 final class ClientSession: NSObject, FanHelperProtocol {
     let service: FanService
-    var id: ObjectIdentifier { ObjectIdentifier(self) }
+    let id: Int
+    let user: uid_t
 
-    init(service: FanService) { self.service = service }
+    init(service: FanService, id: Int, user: uid_t) {
+        self.service = service
+        self.id = id
+        self.user = user
+    }
 
     func version(reply: @escaping (String) -> Void) {
         reply(HelperConstants.helperVersion)
@@ -16,7 +21,7 @@ final class ClientSession: NSObject, FanHelperProtocol {
         service.queue.async { [self] in
             do {
                 let decoded = try JSONDecoder().decode(FanCurve.self, from: curve)
-                try service.follow(decoded, for: id)
+                try service.request(decoded, session: id, user: user)
                 reply(nil)
             } catch {
                 reply(String(describing: error))
@@ -26,7 +31,8 @@ final class ClientSession: NSObject, FanHelperProtocol {
 
     func restoreAutomatic(reply: @escaping (String?) -> Void) {
         service.queue.async { [self] in
-            service.restoreAutomatic()
+            // Only this app's wish: another app's curve may still win.
+            try? service.request(nil, session: id, user: user)
             reply(nil)
         }
     }
@@ -37,16 +43,16 @@ final class ListenerDelegate: NSObject, NSXPCListenerDelegate {
     init(service: FanService) { self.service = service }
 
     func listener(_ listener: NSXPCListener, shouldAcceptNewConnection connection: NSXPCConnection) -> Bool {
-        let session = ClientSession(service: service)
+        let id = service.queue.sync { service.newSession() }
+        let session = ClientSession(service: service, id: id, user: connection.effectiveUserIdentifier)
         connection.exportedInterface = NSXPCInterface(with: FanHelperProtocol.self)
         connection.exportedObject = session
-        let id = session.id
         connection.invalidationHandler = { [service] in
-            service.queue.async { service.clientDisconnected(id) }
+            service.queue.async { service.endSession(id) }
         }
         connection.interruptionHandler = connection.invalidationHandler
         connection.resume()
-        log.info("Accepted connection from pid \(connection.processIdentifier)")
+        log.notice("Session \(id): pid \(connection.processIdentifier), uid \(connection.effectiveUserIdentifier)")
         return true
     }
 }
@@ -80,6 +86,13 @@ for sig in [SIGTERM, SIGINT, SIGHUP] {
     signalSources.append(source)
 }
 
+// When a different user comes to the screen (fast user switching, logging in or out),
+// their app's request takes priority.
+let consoleWatcher = ConsoleUser.watch(on: service.queue) {
+    log.notice("User at the screen changed to uid \(ConsoleUser.current().map(String.init) ?? "none", privacy: .public)")
+    service.update()
+}
+
 let delegate = ListenerDelegate(service: service)
 let listener = NSXPCListener(machServiceName: HelperConstants.helperLabel)
 // Only accept connections from the Fan Control app.
@@ -87,5 +100,5 @@ let requirement = ClientRequirement.current
 listener.setConnectionCodeSigningRequirement(requirement)
 listener.delegate = delegate
 listener.resume()
-log.info("Helper \(HelperConstants.helperVersion) listening; clients must satisfy: \(requirement, privacy: .public)")
+log.notice("Helper \(HelperConstants.helperVersion) listening; clients must satisfy: \(requirement, privacy: .public)")
 dispatchMain()
