@@ -1,7 +1,7 @@
 #!/bin/sh
 # Points the Homebrew cask at a published release and opens a PR on the tap.
 #
-#   scripts/update-cask.sh <version>        e.g. scripts/update-cask.sh 1.0.3
+#   scripts/update-cask.sh <version>        e.g. scripts/update-cask.sh 1.1
 #
 # Needs gh, logged in with push access to the tap. TAP overrides the tap repository.
 set -eu

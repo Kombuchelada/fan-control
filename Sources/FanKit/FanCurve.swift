@@ -2,13 +2,19 @@ import Foundation
 
 /// A temperature → fan speed curve, plus how quickly the fans should respond to it.
 ///
-/// Speeds are fractions of each fan's own range: 0 is the fan's minimum RPM, 1 its maximum.
-/// Using fractions lets one curve drive fans with different limits.
+/// Speeds run from 0, a fan's minimum RPM, to 1, the fastest it can be run. On the way,
+/// `listedMaximumSpeed` is the maximum the SMC lists for the fan, which is as fast as macOS
+/// itself runs it. Fans whose real top speed isn't known stop there, so on those Macs any
+/// higher speed means the listed maximum. `FanReading.rpm(atSpeed:)` does the conversion.
+/// Using speeds rather than RPM lets one curve drive fans with different limits.
 public struct FanCurve: Codable, Hashable, Sendable {
+    /// The speed at which every fan reaches the maximum the SMC lists for it.
+    public static let listedMaximumSpeed = 0.6
+
     public struct Point: Codable, Hashable, Sendable {
         /// Temperature in °C.
         public var temperature: Double
-        /// Fraction of the fan's range, 0...1.
+        /// Fan speed, 0...1.
         public var speed: Double
 
         public init(_ temperature: Double, _ speed: Double) {
@@ -27,9 +33,9 @@ public struct FanCurve: Codable, Hashable, Sendable {
         /// The temperature must fall this many °C before fans slow down, which stops
         /// the fans from hunting up and down around a curve point.
         public var hysteresis: Double
-        /// Maximum change in speed per second (fraction of range) when speeding up.
+        /// Maximum change in speed per second when speeding up.
         public var rampUp: Double
-        /// Maximum change in speed per second (fraction of range) when slowing down.
+        /// Maximum change in speed per second when slowing down.
         public var rampDown: Double
 
         public init(riseSmoothing: Double, fallSmoothing: Double, hysteresis: Double, rampUp: Double, rampDown: Double) {
