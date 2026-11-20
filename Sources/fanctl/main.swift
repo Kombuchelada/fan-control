@@ -4,6 +4,12 @@
 //   fanctl keys [prefix]     dump raw SMC keys
 //   fanctl set <fan> <rpm>   force a fan to a speed (sudo)
 //   fanctl auto              return all fans to automatic control (sudo)
+//   fanctl client <profile> [seconds] [--release]
+//                            act as a Fan Control app: ask the installed helper to follow
+//                            <profile>, stay connected for [seconds], optionally ask for
+//                            automatic control as the app does when it quits, then disconnect.
+//                            The helper only accepts clients signed like the app, so sign a
+//                            copy of fanctl first (see scripts/check-multi-client.sh).
 import FanKit
 import Foundation
 
@@ -47,6 +53,30 @@ case "auto":
     for fan in 0..<ThermalSensors.fanCount(smc) {
         do { try setForced(fan, false) } catch { fail(String(describing: error)) }
     }
+case "client":
+    guard let name = args.first, let profile = FanProfile(rawValue: name) else {
+        fail("usage: fanctl client <\(FanProfile.allCases.map(\.rawValue).joined(separator: "|"))> [seconds] [--release]")
+    }
+    let hold = args.dropFirst().first.flatMap(Double.init) ?? 0
+    let connection = NSXPCConnection(machServiceName: HelperConstants.helperLabel, options: .privileged)
+    connection.remoteObjectInterface = NSXPCInterface(with: FanHelperProtocol.self)
+    connection.resume()
+    guard let helper = connection.synchronousRemoteObjectProxyWithErrorHandler({ error in
+        fail("couldn’t reach the helper: \(error.localizedDescription)")
+    }) as? FanHelperProtocol else { fail("unexpected proxy") }
+    if let curve = profile.curve {
+        helper.follow(curve: try JSONEncoder().encode(curve)) { message in if let message { fail(message) } }
+    } else {
+        helper.restoreAutomatic { _ in }
+    }
+    print("client \(getpid()): requested \(name)")
+    fflush(stdout)
+    Thread.sleep(forTimeInterval: hold)
+    if args.contains("--release") {
+        helper.restoreAutomatic { _ in }
+        print("client \(getpid()): requested automatic before quitting")
+    }
+    connection.invalidate()
 default:
     fail("unknown command \(command)")
 }
