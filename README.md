@@ -103,7 +103,7 @@ While a curve is active, the menu bar icon is filled in. Choose **Automatic** to
 - Fans go back to automatic control when no running copy of the app wants a curve (for example after it quits or crashes), when the helper is stopped, and at every boot.
 - If no temperature can be read, the helper runs the fans at full speed.
 - Target speeds are always clamped to each fan's own minimum and maximum.
-- If something else changes a fan's speed while a curve is active, the helper sets it back within a second. Opening Siri does this: macOS drops the fans to their minimum speed.
+- If something else changes a fan's speed while a curve is active, the helper sets it back after a few seconds. macOS does this when Siri opens, to quiet the fans for about five seconds; the helper allows that pause, then returns to the curve. Above 90 °C it doesn't wait.
 
 ## Uninstalling
 
@@ -144,7 +144,7 @@ scripts/build.sh                # build build/Fan Control.app (ad-hoc signed)
 scripts/package.sh              # build and zip it as build/Fan-Control.zip
 scripts/test.sh                 # unit tests for the curves, the controller and multi-user arbitration
 SIGN_IDENTITY=… scripts/check-multi-client.sh   # two-app check against the installed helper
-SIGN_IDENTITY=… scripts/check-siri-override.sh  # opens Siri; the installed helper must keep the curve's speed
+SIGN_IDENTITY=… scripts/check-siri-override.sh  # opens Siri; the fans must go quiet, then return to the curve
 swift scripts/make-icon.swift   # regenerate Resources/AppIcon.icns
 ```
 

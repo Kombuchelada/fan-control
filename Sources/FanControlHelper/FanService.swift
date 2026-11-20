@@ -18,11 +18,15 @@ final class FanService {
     private var timer: DispatchSourceTimer?
     private var lastTick: Date?
     private var lastWritten: [Int: Double] = [:]
+    /// Ticks left to leave the fans alone after something else changed their targets.
+    private var quietTicks = 0
     private var nextSession = 0
 
     static let tickInterval: TimeInterval = 1
     /// Fan speed differences smaller than this aren't worth a write.
     static let rpmTolerance = 15.0
+    /// How long macOS quiets the fans for when Siri opens, measured under automatic control.
+    static let quietTickCount = 4
 
     init() throws {
         smc = try SMC()
@@ -65,6 +69,9 @@ final class FanService {
             // the fans' own spin-up and spin-down soften the change.
             controller = CurveController(curve: wanted)
             lastTick = nil
+            // A newly chosen curve applies at once.
+            lastWritten = [:]
+            quietTicks = 0
             log.notice("Following a curve with \(wanted.points.count) points")
             tick()
             startTimer()
@@ -80,6 +87,7 @@ final class FanService {
         timer = nil
         controller = nil
         lastWritten = [:]
+        quietTicks = 0
         for fan in 0..<ThermalSensors.fanCount(smc) {
             do { try writer.restoreAutomatic(fan: fan) } catch { log.error("Restore fan \(fan) failed: \(String(describing: error))") }
         }
@@ -107,15 +115,28 @@ final class FanService {
         let speed = snapshot.controlTemperature.map { controller.update(temperature: $0, interval: interval) } ?? 1
         self.controller = controller
 
+        // When Siri opens, macOS quiets the fans for a few seconds by dropping their targets,
+        // leaving them forced. Allow the same pause, then go back to the curve, unless it's
+        // too hot to wait.
+        let hot = (snapshot.controlTemperature ?? .infinity) >= CurveController.safetyStart
+        if quietTicks > 0 {
+            quietTicks -= 1
+            if quietTicks > 0, !hot { return }
+            quietTicks = 0
+            lastWritten = [:]
+            log.notice("Setting the fans' speeds again")
+        } else if !hot, snapshot.fans.contains(where: { wasRetargeted($0.index) }) {
+            quietTicks = Self.quietTickCount
+            log.notice("Something else changed the fans' speeds; leaving them for \(Self.quietTickCount) seconds")
+            return
+        }
+
         for fan in snapshot.fans {
             let rpm = (fan.minimumRPM + (fan.maximumRPM - fan.minimumRPM) * speed).rounded()
-            // Rewrite when the target moves meaningfully, or when something else has changed
-            // the fan under us: waking from sleep puts it back in automatic mode, and Siri
-            // drops its target to minimum when it opens, leaving it forced.
-            if let written = lastWritten[fan.index], abs(written - rpm) < Self.rpmTolerance {
-                guard !writer.isHolding(fan: fan.index, at: written, tolerance: Self.rpmTolerance) else { continue }
-                log.notice("\(fan.name, privacy: .public) was taken off its target; setting it again")
-            }
+            // Rewrite when the target moves meaningfully, or when the fan is no longer where
+            // we put it (waking from sleep, for one, returns it to automatic mode).
+            if let written = lastWritten[fan.index], abs(written - rpm) < Self.rpmTolerance,
+               writer.isForced(fan: fan.index), !wasRetargeted(fan.index) { continue }
             do {
                 try writer.setSpeed(fan: fan.index, rpm: rpm)
                 lastWritten[fan.index] = rpm
@@ -123,6 +144,13 @@ final class FanService {
                 log.error("Setting \(fan.name) to \(rpm) rpm failed: \(String(describing: error))")
             }
         }
+    }
+
+    /// Whether something else has given fan `index` a different target while leaving it forced.
+    private func wasRetargeted(_ index: Int) -> Bool {
+        guard let written = lastWritten[index], writer.isForced(fan: index),
+              let target = writer.target(fan: index) else { return false }
+        return abs(target - written) >= Self.rpmTolerance
     }
 }
 
