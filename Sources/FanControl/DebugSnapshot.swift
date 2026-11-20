@@ -21,7 +21,7 @@ enum DebugSnapshot {
                     menu.cancelTracking()
                 }
                 RunLoop.main.add(timer, forMode: .common)
-                menu.popUp(positioning: nil, at: NSPoint(x: 0, y: 0), in: button)
+                menu.popUp(positioning: nil, at: NSPoint(x: 0, y: (button?.bounds.maxY ?? 0) + 6), in: button)
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { NSApp.terminate(nil) }
             }
         }
