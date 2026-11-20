@@ -21,6 +21,8 @@ final class FanService {
     private var nextSession = 0
 
     static let tickInterval: TimeInterval = 1
+    /// Fan speed differences smaller than this aren't worth a write.
+    static let rpmTolerance = 15.0
 
     init() throws {
         smc = try SMC()
@@ -107,10 +109,13 @@ final class FanService {
 
         for fan in snapshot.fans {
             let rpm = (fan.minimumRPM + (fan.maximumRPM - fan.minimumRPM) * speed).rounded()
-            // Rewrite when the target moves meaningfully, or when something (e.g. waking from
-            // sleep) has put the fan back in automatic mode.
-            let stale = lastWritten[fan.index].map { abs($0 - rpm) >= 15 } ?? true
-            guard stale || !writer.isForced(fan: fan.index) else { continue }
+            // Rewrite when the target moves meaningfully, or when something else has changed
+            // the fan under us: waking from sleep puts it back in automatic mode, and Siri
+            // drops its target to minimum when it opens, leaving it forced.
+            if let written = lastWritten[fan.index], abs(written - rpm) < Self.rpmTolerance {
+                guard !writer.isHolding(fan: fan.index, at: written, tolerance: Self.rpmTolerance) else { continue }
+                log.notice("\(fan.name, privacy: .public) was taken off its target; setting it again")
+            }
             do {
                 try writer.setSpeed(fan: fan.index, rpm: rpm)
                 lastWritten[fan.index] = rpm

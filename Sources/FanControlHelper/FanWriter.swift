@@ -18,6 +18,13 @@ struct FanWriter {
         try setForced(fan: index, false)
     }
 
+    /// Whether fan `index` is still forced to `rpm`, the target last written. False once
+    /// something else has put the fan back in automatic mode or moved its target.
+    func isHolding(fan index: Int, at rpm: Double, tolerance: Double) -> Bool {
+        guard isForced(fan: index), let target = smc.number(.fan(index, "Tg")) else { return false }
+        return abs(target - rpm) < tolerance
+    }
+
     func isForced(fan index: Int) -> Bool {
         if let mode = smc.number(.fan(index, "Md")) { return mode == 1 }
         return Int(smc.number("FS! ") ?? 0) & (1 << index) != 0
