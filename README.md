@@ -37,6 +37,14 @@ Don't run Fan Control at the same time as another app that sets fan speeds, such
 
 ## Installing
 
+### Homebrew
+
+```sh
+brew install --cask kombuchelada/tap/fan-control
+```
+
+`brew upgrade` keeps it up to date. `brew uninstall --cask fan-control` removes the app; add `--zap` to also remove its helper and settings.
+
 ### Download
 
 1. Download **Fan-Control.zip** from the [latest release](https://github.com/Kombuchelada/fan-control/releases/latest).
@@ -97,6 +105,8 @@ While a curve is active, the menu bar icon is filled in. Choose **Automatic** to
 
 ## Uninstalling
 
+If you installed with Homebrew, run `brew uninstall --zap --cask fan-control`. Otherwise:
+
 1. Open **Settings… → General** and click **Uninstall…** next to **Fan control helper**.
 2. Quit Fan Control and delete it from `/Applications`.
 
@@ -152,6 +162,12 @@ SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" NOTARY_PROFILE=<pro
 ```
 
 This signs the app and helper with the hardened runtime, submits the zip to Apple, staples the notarization ticket to the app, and re-zips it. Attach `build/Fan-Control.zip` to a GitHub release.
+
+Once the release is published, update the Homebrew cask:
+
+```sh
+scripts/update-cask.sh 1.0.3   # opens a PR on Kombuchelada/homebrew-tap
+```
 
 When the helper is Developer ID signed, it only accepts connections from apps signed by the same team. Builds without a Developer ID fall back to checking the app's bundle identifier.
 
