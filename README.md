@@ -16,7 +16,9 @@ A native macOS menu bar app for choosing how your Intel Mac's fans respond to he
 | **Quiet** | Minimum speed until 62 °C, then an unhurried ramp. Brief load spikes go unheard. |
 | **Balanced** | A gentle ramp from 52 °C, with smoothing so the fans don't hunt up and down. |
 | **Performance** | Ramps early and fast to keep the CPU cool enough to hold boost clocks. |
-| **Full Speed** | Every fan at its maximum. |
+| **Full Speed** | Every fan at its top speed. |
+
+On the 16-inch MacBook Pro (2019), the top speed is well above what macOS ever uses: about 7,600 rpm rather than 5,300. See [Top speeds](#top-speeds).
 
 ## Requirements
 
@@ -102,7 +104,7 @@ While a curve is active, the menu bar icon is filled in. Choose **Automatic** to
 - Above 90 °C every curve ramps toward full speed, reaching it at 97 °C, whatever the chosen curve says.
 - Fans go back to automatic control when no running copy of the app wants a curve (for example after it quits or crashes), when the helper is stopped, and at every boot.
 - If no temperature can be read, the helper runs the fans at full speed.
-- Target speeds are always clamped to each fan's own minimum and maximum.
+- Target speeds are always clamped to each fan's own minimum and top speed.
 - If something else changes a fan's speed while a curve is active, the helper sets it back after a few seconds. macOS does this when Siri opens, to quiet the fans for about five seconds; the helper allows that pause, then returns to the curve. Above 90 °C it doesn't wait.
 
 ## Uninstalling
@@ -127,9 +129,9 @@ Fan speeds and temperatures live in the Mac's System Management Controller (SMC)
 - **`FanControl`**: the menu bar app (AppKit `NSStatusItem` and `NSMenu`; SwiftUI and Swift Charts for Settings). It reads sensors directly from the SMC.
 - **`FanControlHelper`**: a small root LaunchDaemon (`app.fancontrol.helper`). It runs the control loop once a second, and it accepts XPC connections only from the Fan Control app: one signed by the same Developer ID team as the helper, or, for builds from source, one signed as `app.fancontrol.FanControl`. The app installs it with the standard macOS administrator prompt.
 - **`FanKit`**: shared code: SMC access, sensors, the curve definitions and the curve controller.
-- **`fanctl`**: a diagnostic command line tool: `fanctl status`, `fanctl keys [prefix]`, `sudo fanctl set <fan> <rpm>` and `sudo fanctl auto`.
+- **`fanctl`**: a diagnostic command line tool: `fanctl status`, `fanctl keys [prefix]`, `sudo fanctl set <fan> <rpm>`, `sudo fanctl auto` and `sudo fanctl top-speed`.
 
-Each curve maps temperature to a fraction of a fan's own speed range. The input is the hotter of the CPU and GPU die temperatures. Each curve also sets how quickly the fans respond:
+Each curve maps temperature to a speed between a fan's minimum and its top speed. The input is the hotter of the CPU and GPU die temperatures. Each curve also sets how quickly the fans respond:
 
 - **Smoothing:** temperature changes are averaged over time, so brief spikes don't make the fans surge.
 - **Hysteresis:** temperatures must fall a few degrees before the fans slow down.
@@ -137,12 +139,24 @@ Each curve maps temperature to a fraction of a fan's own speed range. The input 
 
 The curves are defined in [`Sources/FanKit/FanProfile.swift`](Sources/FanKit/FanProfile.swift).
 
+### Top speeds
+
+The maximum the SMC lists for a fan is only where macOS stops. The SMC accepts higher targets, and the fan follows them until its motor is at full drive. On a 16-inch MacBook Pro (2019), the listed maximums are 5,297 and 4,905 rpm, and the fans top out near 7,800 and 7,900 rpm.
+
+Fan Control goes past the listed maximum only on models where the top speed has been measured, listed in [`Sources/FanKit/TopSpeeds.swift`](Sources/FanKit/TopSpeeds.swift). So far that is the 16-inch MacBook Pro (2019), at 7,600 and 7,040 rpm: a little under where the left fan stops gaining, and the same 8% apart that macOS keeps the two fans. On every other Mac, the listed maximum is the top speed.
+
+The first 60% of a curve's speed scale covers a fan's minimum to its listed maximum, and the rest covers the listed maximum to its top speed. Quiet stays within the speeds macOS uses until 93 °C, Balanced until 89 °C and Performance until 75 °C.
+
+Running fans faster than macOS does is louder and may wear them sooner.
+
+To measure another model, choose **Automatic**, then run `sudo .build/debug/fanctl top-speed` after `swift build --product fanctl`. It steps every fan up from its listed maximum until its speed stops rising, which takes a minute or two and is loud, then returns the fans to automatic control.
+
 ## Development
 
 ```sh
 scripts/build.sh                # build build/Fan Control.app (ad-hoc signed)
 scripts/package.sh              # build and zip it as build/Fan-Control.zip
-scripts/test.sh                 # unit tests for the curves, the controller and multi-user arbitration
+scripts/test.sh                 # unit tests for the curves, fan speeds, the controller and multi-user arbitration
 SIGN_IDENTITY=… scripts/check-multi-client.sh   # two-app check against the installed helper
 SIGN_IDENTITY=… scripts/check-siri-override.sh  # opens Siri; the fans must go quiet, then return to the curve
 swift scripts/make-icon.swift   # regenerate Resources/AppIcon.icns

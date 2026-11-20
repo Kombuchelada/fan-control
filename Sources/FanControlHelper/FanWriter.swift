@@ -5,13 +5,10 @@ import Foundation
 struct FanWriter {
     let smc: SMC
 
-    /// Sets fan `index` to `rpm`, clamped to the fan's own limits.
-    func setSpeed(fan index: Int, rpm: Double) throws {
-        let minimum = smc.number(.fan(index, "Mn")) ?? 0
-        let maximum = smc.number(.fan(index, "Mx")) ?? rpm
-        let target = rpm.clamped(to: minimum...max(minimum, maximum))
+    /// Sets fan `index` to `rpm`, clamped to `limits`, the slowest and fastest it may run.
+    func setSpeed(fan index: Int, rpm: Double, limits: ClosedRange<Double>) throws {
         try setForced(fan: index, true)
-        try smc.write(.fan(index, "Tg"), number: target)
+        try smc.write(.fan(index, "Tg"), number: rpm.clamped(to: limits))
     }
 
     func restoreAutomatic(fan index: Int) throws {

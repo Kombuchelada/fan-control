@@ -67,18 +67,20 @@ public enum FanProfile: String, CaseIterable, Codable, Identifiable, Sendable {
         switch self {
         case .automatic:
             return nil
+        // Up to `FanCurve.listedMaximumSpeed` (0.6) a curve stays within the speeds macOS
+        // itself uses; above it, fans with a known top speed go faster than macOS runs them.
         case .quiet:
             return FanCurve(
-                points: [.init(0, 0), .init(62, 0), .init(75, 0.15), .init(85, 0.4), .init(92, 0.75), .init(97, 1)],
-                response: .init(riseSmoothing: 8, fallSmoothing: 20, hysteresis: 4, rampUp: 0.04, rampDown: 0.015))
+                points: [.init(0, 0), .init(62, 0), .init(75, 0.09), .init(85, 0.24), .init(92, 0.45), .init(97, 1)],
+                response: .init(riseSmoothing: 8, fallSmoothing: 20, hysteresis: 4, rampUp: 0.024, rampDown: 0.009))
         case .balanced:
             return FanCurve(
-                points: [.init(0, 0), .init(52, 0), .init(65, 0.2), .init(78, 0.5), .init(88, 0.85), .init(94, 1)],
-                response: .init(riseSmoothing: 4, fallSmoothing: 12, hysteresis: 3, rampUp: 0.08, rampDown: 0.03))
+                points: [.init(0, 0), .init(52, 0), .init(65, 0.12), .init(78, 0.3), .init(88, 0.55), .init(94, 0.8), .init(97, 1)],
+                response: .init(riseSmoothing: 4, fallSmoothing: 12, hysteresis: 3, rampUp: 0.05, rampDown: 0.02))
         case .performance:
             return FanCurve(
-                points: [.init(0, 0.12), .init(45, 0.12), .init(58, 0.35), .init(70, 0.7), .init(80, 1)],
-                response: .init(riseSmoothing: 1.5, fallSmoothing: 8, hysteresis: 2, rampUp: 0.25, rampDown: 0.05))
+                points: [.init(0, 0.075), .init(45, 0.075), .init(58, 0.21), .init(70, 0.45), .init(80, 0.75), .init(88, 1)],
+                response: .init(riseSmoothing: 1.5, fallSmoothing: 8, hysteresis: 2, rampUp: 0.15, rampDown: 0.03))
         case .maximum:
             return FanCurve(
                 points: [.init(0, 1)],

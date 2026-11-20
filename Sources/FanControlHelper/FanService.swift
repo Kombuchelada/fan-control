@@ -132,13 +132,13 @@ final class FanService {
         }
 
         for fan in snapshot.fans {
-            let rpm = (fan.minimumRPM + (fan.maximumRPM - fan.minimumRPM) * speed).rounded()
+            let rpm = fan.rpm(atSpeed: speed).rounded()
             // Rewrite when the target moves meaningfully, or when the fan is no longer where
             // we put it (waking from sleep, for one, returns it to automatic mode).
             if let written = lastWritten[fan.index], abs(written - rpm) < Self.rpmTolerance,
                writer.isForced(fan: fan.index), !wasRetargeted(fan.index) { continue }
             do {
-                try writer.setSpeed(fan: fan.index, rpm: rpm)
+                try writer.setSpeed(fan: fan.index, rpm: rpm, limits: fan.minimumRPM...max(fan.minimumRPM, fan.maximumRPM))
                 lastWritten[fan.index] = rpm
             } catch {
                 log.error("Setting \(fan.name) to \(rpm) rpm failed: \(String(describing: error))")

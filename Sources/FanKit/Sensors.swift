@@ -6,13 +6,33 @@ public struct FanReading: Sendable, Hashable, Identifiable {
     public let name: String
     public let rpm: Double
     public let minimumRPM: Double
+    /// The maximum the SMC lists, which is as fast as macOS runs the fan.
+    public let listedMaximumRPM: Double
+    /// The fastest Fan Control runs the fan: its measured top speed where one is known
+    /// (see `TopSpeeds`), otherwise the listed maximum.
     public let maximumRPM: Double
     public let isManual: Bool
 
     public var id: Int { index }
 
     /// Where the fan sits within its range, 0...1.
-    public var fraction: Double {
+    public var fraction: Double { fraction(ofRPM: rpm) }
+
+    /// The RPM a curve speed (0...1) stands for on this fan. Speeds up to
+    /// `FanCurve.listedMaximumSpeed` span the minimum to the listed maximum, and the rest
+    /// span whatever lies between the listed maximum and the fan's top speed.
+    public func rpm(atSpeed speed: Double) -> Double {
+        let speed = speed.clamped(to: 0...1)
+        let knee = FanCurve.listedMaximumSpeed
+        return speed <= knee
+            ? minimumRPM + (listedMaximumRPM - minimumRPM) * speed / knee
+            : listedMaximumRPM + (maximumRPM - listedMaximumRPM) * (speed - knee) / (1 - knee)
+    }
+
+    /// Where a curve speed (0...1) puts the fan within its range, 0...1.
+    public func fraction(atSpeed speed: Double) -> Double { fraction(ofRPM: rpm(atSpeed: speed)) }
+
+    private func fraction(ofRPM rpm: Double) -> Double {
         maximumRPM > minimumRPM ? ((rpm - minimumRPM) / (maximumRPM - minimumRPM)).clamped(to: 0...1) : 0
     }
 }
@@ -45,6 +65,15 @@ public enum ThermalSensors {
         ThermalSnapshot(cpu: firstValid(cpuKeys, smc), gpu: firstValid(gpuKeys, smc), fans: fans(smc))
     }
 
+    /// This Mac's model identifier, e.g. "MacBookPro16,1".
+    public static let modelIdentifier: String = {
+        var size = 0
+        sysctlbyname("hw.model", nil, &size, nil, 0)
+        var bytes = [CChar](repeating: 0, count: max(size, 1))
+        sysctlbyname("hw.model", &bytes, &size, nil, 0)
+        return String(cString: bytes)
+    }()
+
     public static func fanCount(_ smc: SMC) -> Int {
         Int(smc.number("FNum") ?? 0)
     }
@@ -55,12 +84,14 @@ public enum ThermalSensors {
         return (0..<count).compactMap { i in
             guard let rpm = smc.number(.fan(i, "Ac")) else { return nil }
             let mode = smc.number(.fan(i, "Md"))
+            let listedMaximum = smc.number(.fan(i, "Mx")) ?? 0
             return FanReading(
                 index: i,
                 name: fanName(i, count: count),
                 rpm: max(rpm, 0),
                 minimumRPM: smc.number(.fan(i, "Mn")) ?? 0,
-                maximumRPM: smc.number(.fan(i, "Mx")) ?? 0,
+                listedMaximumRPM: listedMaximum,
+                maximumRPM: TopSpeeds.topSpeed(fan: i, of: count, listedMaximum: listedMaximum),
                 isManual: mode.map { $0 == 1 } ?? (forcedMask & (1 << i) != 0))
         }
     }

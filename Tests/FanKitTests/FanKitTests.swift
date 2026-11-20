@@ -45,6 +45,22 @@ import Testing
     }
 }
 
+@Suite struct FanSpeedTests {
+    func fan(topSpeed: Double) -> FanReading {
+        FanReading(index: 0, name: "Fan", rpm: 0, minimumRPM: 2000, listedMaximumRPM: 5000, maximumRPM: topSpeed, isManual: false)
+    }
+
+    @Test(arguments: [(0.0, 2000.0), (0.3, 3500), (0.6, 5000), (0.8, 6000), (1, 7000), (1.5, 7000)])
+    func speedsPastTheListedMaximumUseTheFansHeadroom(speed: Double, rpm: Double) {
+        #expect(abs(fan(topSpeed: 7000).rpm(atSpeed: speed) - rpm) < 1e-6)
+    }
+
+    @Test(arguments: [(0.0, 2000.0), (0.3, 3500), (0.6, 5000), (0.8, 5000), (1, 5000)])
+    func aFanWithNoKnownHeadroomStopsAtTheListedMaximum(speed: Double, rpm: Double) {
+        #expect(abs(fan(topSpeed: 5000).rpm(atSpeed: speed) - rpm) < 1e-6)
+    }
+}
+
 @Suite struct CurveControllerTests {
     func controller(hysteresis: Double = 3, rampUp: Double = 1, rampDown: Double = 1, smoothing: Double = 0) -> CurveController {
         CurveController(curve: FanCurve(

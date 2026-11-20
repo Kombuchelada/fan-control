@@ -10,7 +10,8 @@ struct FanCurveSettingsView: View {
         Form {
             Section {
                 CurveChart(selected: model.profile, temperature: model.snapshot.controlTemperature,
-                           speed: model.profile == .automatic ? nil : model.snapshot.fans.map(\.fraction).max())
+                           speed: model.profile == .automatic ? nil : model.snapshot.fans.map(\.fraction).max(),
+                           fan: model.snapshot.fans.first)
                     .frame(height: 170)
                     .padding(.vertical, 4)
 
@@ -132,8 +133,10 @@ private extension View {
 struct CurveChart: View {
     let selected: FanProfile
     let temperature: Double?
-    /// Current fan speed (0...1) when a curve is active.
+    /// Where the fans currently sit within their range (0...1), when a curve is active.
     let speed: Double?
+    /// A fan to scale the curves by, so they show how much of this Mac's fan range they use.
+    let fan: FanReading?
 
     private static let domain = 30.0...100.0
     private static let curves = FanProfile.allCases.filter { $0.curve != nil }
@@ -202,8 +205,17 @@ struct CurveChart: View {
     private func samples(for profile: FanProfile) -> [(temperature: Double, speed: Double)] {
         guard let curve = profile.curve else { return [] }
         let breakpoints = curve.points.map(\.temperature).filter { Self.domain.contains($0) }
-        let temps = Set([Self.domain.lowerBound, Self.domain.upperBound] + breakpoints).sorted()
-        return temps.map { ($0, curve.speed(at: $0)) }
+        // A curve bends where it passes the listed maximum, so sample there too.
+        let knee = zip(curve.points, curve.points.dropFirst()).compactMap { a, b -> Double? in
+            let target = FanCurve.listedMaximumSpeed
+            guard a.speed < target, b.speed > target else { return nil }
+            return a.temperature + (b.temperature - a.temperature) * (target - a.speed) / (b.speed - a.speed)
+        }.filter { Self.domain.contains($0) }
+        let temps = Set([Self.domain.lowerBound, Self.domain.upperBound] + breakpoints + knee).sorted()
+        return temps.map { temperature in
+            let speed = curve.speed(at: temperature)
+            return (temperature, fan?.fraction(atSpeed: speed) ?? speed)
+        }
     }
 
     private func describe(_ curve: FanCurve) -> String {
