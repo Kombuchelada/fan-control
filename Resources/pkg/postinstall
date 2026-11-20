@@ -1,0 +1,20 @@
+#!/bin/sh
+# Runs as root after Installer has copied Fan Control into /Applications.
+set -u
+
+APP="${3%/}/Applications/Fan Control.app"
+
+# Install or update the privileged helper now, while Installer already has admin rights,
+# so the app doesn't have to ask for a password the first time a curve is chosen.
+# Restarting the helper briefly returns the fans to automatic control; running copies of
+# the app reconnect and re-send their curves.
+/bin/sh "$APP/Contents/Resources/helper-tool.sh" install "$APP" || exit 1
+
+# Start the new version for the user at the screen (quitting the old one first).
+user="$(/usr/bin/stat -f %Su /dev/console)"
+if [ -n "$user" ] && [ "$user" != "root" ] && [ "$user" != "loginwindow" ]; then
+    uid="$(/usr/bin/id -u "$user")"
+    /usr/bin/pkill -x -u "$uid" FanControl 2>/dev/null && /bin/sleep 1
+    /bin/launchctl asuser "$uid" /usr/bin/sudo -u "$user" /usr/bin/open "$APP" || true
+fi
+exit 0

@@ -1,12 +1,15 @@
 #!/bin/sh
-# Builds the app and zips it for distribution as build/Fan-Control.zip.
+# Builds the app and packages it for distribution as build/Fan-Control.zip and, with an
+# installer certificate, build/Fan-Control.pkg.
 #
 #   scripts/package.sh
 #       ad-hoc signed zip (Gatekeeper will block it on other Macs)
-#   SIGN_IDENTITY="Developer ID Application: …" NOTARY_PROFILE=<profile> scripts/package.sh
-#       Developer ID signed, notarized by Apple and stapled, ready to publish
+#   SIGN_IDENTITY="Developer ID Application: …" INSTALLER_IDENTITY="Developer ID Installer: …" \
+#   NOTARY_PROFILE=<profile> scripts/package.sh
+#       Developer ID signed zip and installer package, both notarized and stapled, ready to publish
 #
 # NOTARY_PROFILE names credentials saved with `xcrun notarytool store-credentials`.
+# Leave out INSTALLER_IDENTITY to skip the .pkg.
 set -eu
 cd "$(dirname "$0")/.."
 
@@ -34,3 +37,7 @@ if [ -n "${NOTARY_PROFILE:-}" ]; then
 fi
 
 shasum -a 256 "$ZIP"
+
+if [ -n "${INSTALLER_IDENTITY:-}" ]; then
+    scripts/make-pkg.sh "$APP" build/Fan-Control.pkg
+fi

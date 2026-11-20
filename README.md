@@ -47,11 +47,12 @@ brew install --cask kombuchelada/tap/fan-control
 
 ### Download
 
-1. Download **Fan-Control.zip** from the [latest release](https://github.com/Kombuchelada/fan-control/releases/latest).
-2. Open the zip, then drag **Fan Control** into your **Applications** folder.
-3. Open Fan Control from Applications. macOS asks once whether to open an app downloaded from the internet; click **Open**.
+1. Download **Fan-Control.pkg** from the [latest release](https://github.com/Kombuchelada/fan-control/releases/latest).
+2. Open it and follow the installer. It asks for your administrator password once, installs Fan Control in **Applications** along with the helper that sets fan speeds, and opens the app.
 
-Releases are signed with a Developer ID and notarized by Apple.
+Prefer not to use an installer? Download **Fan-Control.zip** instead, drag **Fan Control** into **Applications** and open it. Fan Control then asks for your password the first time you choose a fan curve.
+
+Releases, including the installer, are signed with a Developer ID and notarized by Apple.
 
 ### Build from source
 
@@ -109,6 +110,7 @@ If you installed with Homebrew, run `brew uninstall --zap --cask fan-control`. O
 
 1. Open **Settings… → General** and click **Uninstall…** next to **Fan control helper**.
 2. Quit Fan Control and delete it from `/Applications`.
+3. If you used the installer, you can also remove its receipt: `sudo pkgutil --forget app.fancontrol.FanControl.pkg`.
 
 If you've already deleted the app, remove the helper from Terminal:
 
@@ -158,10 +160,14 @@ xcrun notarytool store-credentials <profile> --apple-id <email> --team-id <TEAMI
 Then:
 
 ```sh
-SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" NOTARY_PROFILE=<profile> scripts/package.sh
+SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" \
+INSTALLER_IDENTITY="Developer ID Installer: Your Name (TEAMID)" \
+NOTARY_PROFILE=<profile> scripts/package.sh
 ```
 
-This signs the app and helper with the hardened runtime, submits the zip to Apple, staples the notarization ticket to the app, and re-zips it. Attach `build/Fan-Control.zip` to a GitHub release.
+This signs the app and helper with the hardened runtime, submits the zip to Apple, staples the notarization ticket to the app, and re-zips it. It then wraps the app in `build/Fan-Control.pkg` with `scripts/make-pkg.sh`, which is signed with the Developer ID Installer certificate, notarized and stapled. Attach both files to a GitHub release.
+
+The installer copies the app into `/Applications` (never into another copy elsewhere), then its `postinstall` script (`Resources/pkg/postinstall`) installs the helper and opens the app for the user at the screen. It refuses to install on Apple silicon or before macOS 14.
 
 Once the release is published, update the Homebrew cask:
 
