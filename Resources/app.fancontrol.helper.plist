@@ -8,6 +8,13 @@
 	<array>
 		<string>/Library/PrivilegedHelperTools/app.fancontrol.helper</string>
 	</array>
+	<!-- Ties the daemon to the app, so macOS shows it as "Fan Control" (with the app's
+	     icon) in Login Items and the "Background Items Added" notification, rather
+	     than under the developer's name. Requires both to be signed by the same team. -->
+	<key>AssociatedBundleIdentifiers</key>
+	<array>
+		<string>app.fancontrol.FanControl</string>
+	</array>
 	<key>MachServices</key>
 	<dict>
 		<key>app.fancontrol.helper</key>

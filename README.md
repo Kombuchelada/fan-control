@@ -41,23 +41,13 @@ Don't run Fan Control at the same time as another app that sets fan speeds, such
 
 1. Download **Fan-Control.zip** from the [latest release](https://github.com/Kombuchelada/fan-control/releases/latest).
 2. Open the zip, then drag **Fan Control** into your **Applications** folder.
-3. Open Fan Control from Applications.
+3. Open Fan Control from Applications. macOS asks once whether to open an app downloaded from the internet; click **Open**.
 
-Fan Control isn't notarized by Apple, so macOS blocks it the first time with a message that it can't verify the app. To allow it:
-
-- **macOS 15 or later:** click **Done** in the warning. Then open **System Settings → Privacy & Security**, scroll down to the message about Fan Control, click **Open Anyway** and confirm.
-- **macOS 14:** Control-click the app in Applications, choose **Open**, then click **Open** again.
-
-You only need to do this once. If you'd rather use Terminal, this removes the download flag and opens the app:
-
-```sh
-xattr -dr com.apple.quarantine "/Applications/Fan Control.app"
-open "/Applications/Fan Control.app"
-```
+Releases are signed with a Developer ID and notarized by Apple.
 
 ### Build from source
 
-You need the Xcode Command Line Tools; the full Xcode app isn't required. Apps you build yourself aren't blocked by Gatekeeper.
+You need the Xcode Command Line Tools; the full Xcode app isn't required. Apps you build yourself aren't blocked by Gatekeeper, so no signing setup is needed.
 
 1. Install the Command Line Tools, if you don't have them:
 
@@ -120,7 +110,7 @@ sudo rm /Library/PrivilegedHelperTools/app.fancontrol.helper /Library/LaunchDaem
 Fan speeds and temperatures live in the Mac's System Management Controller (SMC). Anyone can read them, but only root can change them, so the project has four parts:
 
 - **`FanControl`**: the menu bar app (AppKit `NSStatusItem` and `NSMenu`; SwiftUI and Swift Charts for Settings). It reads sensors directly from the SMC.
-- **`FanControlHelper`**: a small root LaunchDaemon (`app.fancontrol.helper`). It runs the control loop once a second, and it accepts XPC connections only from a client signed as `app.fancontrol.FanControl`. The app installs it with the standard macOS administrator prompt.
+- **`FanControlHelper`**: a small root LaunchDaemon (`app.fancontrol.helper`). It runs the control loop once a second, and it accepts XPC connections only from the Fan Control app: one signed by the same Developer ID team as the helper, or, for builds from source, one signed as `app.fancontrol.FanControl`. The app installs it with the standard macOS administrator prompt.
 - **`FanKit`**: shared code: SMC access, sensors, the curve definitions and the curve controller.
 - **`fanctl`**: a diagnostic command line tool: `fanctl status`, `fanctl keys [prefix]`, `sudo fanctl set <fan> <rpm>` and `sudo fanctl auto`.
 
@@ -136,13 +126,31 @@ The curves are defined in [`Sources/FanKit/FanProfile.swift`](Sources/FanKit/Fan
 
 ```sh
 scripts/build.sh                # build build/Fan Control.app (ad-hoc signed)
-scripts/package.sh              # build and zip it for a GitHub release
+scripts/package.sh              # build and zip it as build/Fan-Control.zip
 scripts/test.sh                 # unit tests for the curves and the controller
 swift scripts/make-icon.swift   # regenerate Resources/AppIcon.icns
 ```
 
-- If you change the helper, bump `HelperConstants.helperVersion` so the app reinstalls it.
+- If you change the helper or its launchd plist, bump `HelperConstants.helperVersion` so the app reinstalls it.
 - Debug builds can save their own menu and Settings window as PNGs, which is handy for checking layout without screen-recording permission. Run the debug binary from inside an app bundle with `FANCONTROL_SNAPSHOT=/some/dir`.
+
+### Signed, notarized releases
+
+Releases need a **Developer ID Application** certificate in your keychain, plus notarization credentials saved once with:
+
+```sh
+xcrun notarytool store-credentials <profile> --apple-id <email> --team-id <TEAMID>
+```
+
+Then:
+
+```sh
+SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" NOTARY_PROFILE=<profile> scripts/package.sh
+```
+
+This signs the app and helper with the hardened runtime, submits the zip to Apple, staples the notarization ticket to the app, and re-zips it. Attach `build/Fan-Control.zip` to a GitHub release.
+
+When the helper is Developer ID signed, it only accepts connections from apps signed by the same team. Builds without a Developer ID fall back to checking the app's bundle identifier.
 
 ## License
 
