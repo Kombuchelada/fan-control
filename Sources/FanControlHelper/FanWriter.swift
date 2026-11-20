@@ -18,6 +18,11 @@ struct FanWriter {
         try setForced(fan: index, false)
     }
 
+    /// The speed fan `index` is currently set to aim for.
+    func target(fan index: Int) -> Double? {
+        smc.number(.fan(index, "Tg"))
+    }
+
     func isForced(fan index: Int) -> Bool {
         if let mode = smc.number(.fan(index, "Md")) { return mode == 1 }
         return Int(smc.number("FS! ") ?? 0) & (1 << index) != 0
