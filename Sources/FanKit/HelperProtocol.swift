@@ -5,8 +5,8 @@ public enum HelperConstants {
     public static let appIdentifier = "app.fancontrol.FanControl"
     /// Label, Mach service name and executable name of the privileged helper.
     public static let helperLabel = "app.fancontrol.helper"
-    /// Bump whenever the helper changes so the app reinstalls it.
-    public static let helperVersion = "1.0.0"
+    /// Bump whenever the helper or its launchd plist changes, so the app reinstalls it.
+    public static let helperVersion = "3"
 
     public static let installedHelperPath = "/Library/PrivilegedHelperTools/\(helperLabel)"
     public static let installedPlistPath = "/Library/LaunchDaemons/\(helperLabel).plist"

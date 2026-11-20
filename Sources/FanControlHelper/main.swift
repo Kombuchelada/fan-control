@@ -83,8 +83,9 @@ for sig in [SIGTERM, SIGINT, SIGHUP] {
 let delegate = ListenerDelegate(service: service)
 let listener = NSXPCListener(machServiceName: HelperConstants.helperLabel)
 // Only accept connections from the Fan Control app.
-listener.setConnectionCodeSigningRequirement("identifier \"\(HelperConstants.appIdentifier)\"")
+let requirement = ClientRequirement.current
+listener.setConnectionCodeSigningRequirement(requirement)
 listener.delegate = delegate
 listener.resume()
-log.info("Helper \(HelperConstants.helperVersion) listening")
+log.info("Helper \(HelperConstants.helperVersion) listening; clients must satisfy: \(requirement, privacy: .public)")
 dispatchMain()
