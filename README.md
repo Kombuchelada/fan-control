@@ -188,7 +188,7 @@ The installer copies the app into `/Applications` (never into another copy elsew
 Once the release is published, update the Homebrew cask:
 
 ```sh
-scripts/update-cask.sh 1.0.3   # opens a PR on Kombuchelada/homebrew-tap
+scripts/update-cask.sh 1.1     # opens a PR on Kombuchelada/homebrew-tap
 ```
 
 When the helper is Developer ID signed, it only accepts connections from apps signed by the same team. Builds without a Developer ID fall back to checking the app's bundle identifier.
